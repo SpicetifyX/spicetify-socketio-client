@@ -217,6 +217,7 @@ type SchemeIni = {
 };
 
 function hexToRGB(inputHex?: string) {
+  console.log(inputHex);
   if (!inputHex) {
     return "";
   }
@@ -231,7 +232,8 @@ function hexToRGB(inputHex?: string) {
 
   const aRgbHex = hex.match(/.{1,2}/g);
   if (!aRgbHex || aRgbHex.length !== 3) {
-    throw "Could not parse hex colour.";
+    console.warn("Could not parse hex colour.");
+    return "";
   }
 
   const aRgb = [
