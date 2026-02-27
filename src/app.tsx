@@ -15,9 +15,9 @@ async function main() {
       injectTheme(userCSSContent, schemesContent, name, activeScheme);
 
       // @ts-expect-error False positive
-      Spicetify.Config.current_theme = "SpicetifyX";
+      Spicetify.Config.current_theme = name;
       // @ts-expect-error False positive
-      Spicetify.Config.color_scheme = "main";
+      Spicetify.Config.color_scheme = activeScheme;
     }
   }
 
@@ -35,11 +35,38 @@ async function main() {
     socket.emit("get-config", Spicetify.Config);
   });
 
+  Spicetify.Player.addEventListener("songchange", (data) => {
+    socket.emit("songchange", JSON.stringify(data));
+  });
+
+  socket.on("remove-themes", async () => {
+    const existingMarketplaceSchemeCSS = document.querySelector(
+      "style.marketplaceCSS.marketplaceScheme",
+    );
+    if (existingMarketplaceSchemeCSS) existingMarketplaceSchemeCSS.remove();
+
+    const existingMarketplaceThemeCSS = document.querySelector(
+      "link.marketplaceCSS",
+    );
+    if (existingMarketplaceThemeCSS) existingMarketplaceThemeCSS.remove();
+
+    const existingUserThemeCSS = document.querySelector(
+      "link[href='user.css']",
+    );
+    if (existingUserThemeCSS) existingUserThemeCSS.remove();
+
+    const existingMarketplaceUserCSS = document.querySelector(
+      "style.marketplaceCSS.marketplaceUserCSS",
+    );
+    if (existingMarketplaceUserCSS) existingMarketplaceUserCSS.remove();
+  });
+
   socket.on("inject-theme", async (data) => {
     const manifest = JSON.parse(data) as {
       usercss: string;
       schemes: string;
       name: string;
+      activeScheme: string;
     };
 
     console.log("Injecting theme: ", manifest);
@@ -56,12 +83,17 @@ async function main() {
         enabled: true,
         userCSSContent: userCSSContent,
         schemesContent: schemesContent,
-        name: "SpicetifyX",
-        activeScheme: "main",
+        name: manifest.name,
+        activeScheme: manifest.activeScheme,
       }),
     );
 
-    injectTheme(userCSSContent, schemesContent, "SpicetifyX", "main");
+    injectTheme(
+      userCSSContent,
+      schemesContent,
+      manifest.name,
+      manifest.activeScheme,
+    );
   });
 }
 
