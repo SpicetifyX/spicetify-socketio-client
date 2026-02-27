@@ -1,6 +1,26 @@
 import { io } from "socket.io-client";
 
 async function main() {
+  if (Spicetify.LocalStorage.get("socketio:theme")) {
+    const { userCSSContent, enabled, schemesContent, name, activeScheme } =
+      JSON.parse(Spicetify.LocalStorage.get("socketio:theme")!) as {
+        enabled: boolean;
+        userCSSContent: string;
+        schemesContent: string;
+        name: string;
+        activeScheme: string;
+      };
+
+    if (enabled) {
+      injectTheme(userCSSContent, schemesContent, name, activeScheme);
+
+      // @ts-expect-error False positive
+      Spicetify.Config.current_theme = "SpicetifyX";
+      // @ts-expect-error False positive
+      Spicetify.Config.color_scheme = "main";
+    }
+  }
+
   console.log("Loaded socketio extension");
   const socket = io("ws://localhost:3000", { autoConnect: true });
 
@@ -30,69 +50,90 @@ async function main() {
     console.log(userCSSContent);
     console.log(schemesContent);
 
-    const parsedSchemes = parseIni(schemesContent);
-
-    console.log(parsedSchemes);
-
-    const existingMarketplaceSchemeCSS = document.querySelector(
-      "style.marketplaceCSS.marketplaceScheme",
+    Spicetify.LocalStorage.set(
+      "socketio:theme",
+      JSON.stringify({
+        enabled: true,
+        userCSSContent: userCSSContent,
+        schemesContent: schemesContent,
+        name: "SpicetifyX",
+        activeScheme: "main",
+      }),
     );
-    if (existingMarketplaceSchemeCSS) existingMarketplaceSchemeCSS.remove();
 
-    const schemeTag = document.createElement("style");
-    schemeTag.classList.add("marketplaceCSS");
-    schemeTag.classList.add("marketplaceScheme");
-
-    let injectStr = ":root {";
-    const themeIniKeys = Object.keys(parsedSchemes["main"]);
-    for (const key of themeIniKeys) {
-      console.log(key);
-      injectStr += `--spice-${key}: #${parsedSchemes["main"][key]};`;
-      injectStr += `--spice-rgb-${key}: ${hexToRGB(parsedSchemes["main"][key])};`;
-    }
-    injectStr += "}";
-    schemeTag.innerHTML = injectStr;
-    document.body.appendChild(schemeTag);
-
-    // @ts-expect-error: `color_scheme` is read-only type in types
-    Spicetify.Config.color_scheme = "main";
-
-    const existingMarketplaceThemeCSS = document.querySelector(
-      "link.marketplaceCSS",
-    );
-    if (existingMarketplaceThemeCSS) existingMarketplaceThemeCSS.remove();
-
-    try {
-      const existingUserThemeCSS = document.querySelector(
-        "link[href='user.css']",
-      );
-      if (existingUserThemeCSS) existingUserThemeCSS.remove();
-
-      const existingMarketplaceUserCSS = document.querySelector(
-        "style.marketplaceCSS.marketplaceUserCSS",
-      );
-      if (existingMarketplaceUserCSS) existingMarketplaceUserCSS.remove();
-
-      if (userCSSContent) {
-        const userCssTag = document.createElement("style");
-        userCssTag.classList.add("marketplaceCSS");
-        userCssTag.classList.add("marketplaceUserCSS");
-        userCssTag.innerHTML = userCSSContent;
-        document.body.appendChild(userCssTag);
-      } else {
-        const originalUserThemeCSS = document.createElement("link");
-        originalUserThemeCSS.setAttribute("rel", "stylesheet");
-        originalUserThemeCSS.setAttribute("href", "user.css");
-        originalUserThemeCSS.classList.add("userCSS");
-        document.body.appendChild(originalUserThemeCSS);
-      }
-    } catch (error) {
-      console.warn(error);
-    }
-
-    // @ts-expect-error: `current_theme` is read-only type in types
-    Spicetify.Config.current_theme = "main";
+    injectTheme(userCSSContent, schemesContent, "SpicetifyX", "main");
   });
+}
+
+function injectTheme(
+  userCSSContent: string,
+  schemesContent: string,
+  themeName: string,
+  activeScheme: string,
+) {
+  const parsedSchemes = parseIni(schemesContent);
+
+  console.log(parsedSchemes);
+
+  const existingMarketplaceSchemeCSS = document.querySelector(
+    "style.marketplaceCSS.marketplaceScheme",
+  );
+  if (existingMarketplaceSchemeCSS) existingMarketplaceSchemeCSS.remove();
+
+  const schemeTag = document.createElement("style");
+  schemeTag.classList.add("marketplaceCSS");
+  schemeTag.classList.add("marketplaceScheme");
+
+  let injectStr = ":root {";
+  const themeIniKeys = Object.keys(parsedSchemes[activeScheme]);
+  for (const key of themeIniKeys) {
+    console.log(key);
+    injectStr += `--spice-${key}: #${parsedSchemes[activeScheme][key]};`;
+    injectStr += `--spice-rgb-${key}: ${hexToRGB(parsedSchemes[activeScheme][key])};`;
+  }
+  injectStr += "}";
+
+  schemeTag.innerHTML = injectStr;
+
+  console.log(injectStr);
+
+  const headEl = document.querySelector("head") as HTMLElement;
+  document.body.appendChild(schemeTag);
+
+  // @ts-expect-error: `color_scheme` is read-only type in types
+  Spicetify.Config.color_scheme = activeScheme;
+
+  const existingMarketplaceThemeCSS = document.querySelector(
+    "link.marketplaceCSS",
+  );
+  if (existingMarketplaceThemeCSS) existingMarketplaceThemeCSS.remove();
+
+  try {
+    const existingUserThemeCSS = document.querySelector(
+      "link[href='user.css']",
+    );
+    if (existingUserThemeCSS) existingUserThemeCSS.remove();
+
+    const existingMarketplaceUserCSS = document.querySelector(
+      "style.marketplaceCSS.marketplaceUserCSS",
+    );
+    if (existingMarketplaceUserCSS) existingMarketplaceUserCSS.remove();
+
+    console.log(headEl);
+
+    console.log(userCSSContent);
+
+    const userCssTag = document.createElement("style");
+    userCssTag.classList.add("marketplaceCSS");
+    userCssTag.classList.add("marketplaceUserCSS");
+    userCssTag.innerHTML = userCSSContent;
+    document.body.appendChild(userCssTag);
+  } catch (error) {
+    console.warn(error);
+  }
+
+  // @ts-expect-error: `current_theme` is read-only type in types
+  Spicetify.Config.current_theme = themeName;
 }
 
 function parseIni(data: string): SchemeIni {
@@ -107,13 +148,12 @@ function parseIni(data: string): SchemeIni {
 
   for (const line of lines) {
     if (regex.comment.test(line)) {
-      continue; // Skip comment lines
+      continue;
     }
 
     if (regex.param.test(line)) {
-      // Check for xrdb
       if (line.includes("xrdb")) {
-        continue; // Skip xrdb lines
+        continue;
       }
 
       const match = line.match(regex.param);
@@ -145,7 +185,6 @@ type SchemeIni = {
 };
 
 function hexToRGB(inputHex?: string) {
-  console.log(inputHex);
   if (!inputHex) {
     return "";
   }
@@ -153,9 +192,9 @@ function hexToRGB(inputHex?: string) {
   const hex =
     inputHex.length === 3
       ? inputHex
-          .split("")
-          .map((char) => char + char)
-          .join("")
+        .split("")
+        .map((char) => char + char)
+        .join("")
       : inputHex;
 
   const aRgbHex = hex.match(/.{1,2}/g);
